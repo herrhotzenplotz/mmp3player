@@ -113,9 +113,13 @@ int main(argc, argv)
 
     const pa_sample_spec ss = {
 	.format = PA_SAMPLE_S16LE,
-	.rate = info.hz,
+	.rate = 44100,
 	.channels = info.channels
     };
+
+    fprintf(stdout, "INF : Encoder gave sample rate of %d Hz. We set it to %d Hz\n", info.hz, ss.rate);
+
+
 
     pa_simple *pa = NULL;
     int error;
