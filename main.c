@@ -78,14 +78,33 @@ int main(argc, argv)
     mp3dec_frame_info_t info;
     mp3d_sample_t pcm_data[MINIMP3_MAX_SAMPLES_PER_FRAME];
 
-    uint8_t* output_buffer = NULL;
-    long output_buffer_size = 0,
-	 frame_number = 0;
+    long frame_number = 0;
+
+    pa_simple *pa = NULL;
+    int error;
 
     for (int samples = mp3dec_decode_frame(&mp3d, file_buffer, statbuf.st_size, pcm_data, &info);
 	 (stream_length > 0) && ((samples > 0) || (samples == 0 && info.frame_bytes > 0));
 	 samples = mp3dec_decode_frame(&mp3d, file_buffer, statbuf.st_size, pcm_data, &info))
     {
+	if (!pa) {
+	    const pa_sample_spec ss = {
+	       .format = PA_SAMPLE_S16LE,
+	       .rate = 44100,
+	       .channels = info.channels
+	    };
+
+	    fprintf(stdout, "INF : Encoder gave sample rate of %d Hz. We set it to %d Hz\n", info.hz, ss.rate);
+	    pa = pa_simple_new(NULL, "minimp3player",
+			       PA_STREAM_PLAYBACK, NULL,
+			       "Playback", &ss, NULL, NULL, &error);
+	    if (!pa)
+	    {
+		fprintf(stderr, "ERR : Couldn't connect to PulseAudio: %s\n", pa_strerror(error));
+		goto err_pa_new;
+	    }
+	}
+
 	fprintf(stdout, "\rINF : Decoding frame no. %5ld", ++frame_number);
 	file_buffer += info.frame_bytes;
 	stream_length -= info.frame_bytes;
@@ -93,50 +112,11 @@ int main(argc, argv)
 	if (samples == 0) // some other informational data we don't care about
 	    continue;
 
-	output_buffer_size += samples * info.channels * sizeof(mp3d_sample_t);
-	output_buffer = realloc(output_buffer, output_buffer_size);
-
-	if (!output_buffer) {
-	    fprintf(stderr, "ERR : Unable to realloc output buffer.\n");
-	    goto err_realloc;
+	if (pa_simple_write(pa, pcm_data, (size_t)(samples * info.channels * sizeof(mp3d_sample_t)), &error) < 0)
+	{
+	    fprintf(stderr, "ERR : Unable to send data to PulseAudio: %s\n", pa_strerror(error));
+	    goto err_pa_write;
 	}
-
-	memcpy(output_buffer + (output_buffer_size - info.channels * samples * sizeof(mp3d_sample_t)),
-	       pcm_data, samples * sizeof(mp3d_sample_t) * info.channels);
-
-    }
-
-    fprintf(stdout, "\n"
-	    "INF : Decoded %ld bytes worth of pcm data from the file.\n"
-	    "INF : Data is at %p\n",
-	    output_buffer_size, output_buffer);
-
-    const pa_sample_spec ss = {
-	.format = PA_SAMPLE_S16LE,
-	.rate = 44100,
-	.channels = info.channels
-    };
-
-    fprintf(stdout, "INF : Encoder gave sample rate of %d Hz. We set it to %d Hz\n", info.hz, ss.rate);
-
-
-
-    pa_simple *pa = NULL;
-    int error;
-
-    pa = pa_simple_new(NULL, "minimp3player",
-		       PA_STREAM_PLAYBACK, NULL,
-		       "Playback", &ss, NULL, NULL, &error);
-    if (!pa)
-    {
-	fprintf(stderr, "ERR : Couldn't connect to PulseAudio: %s\n", pa_strerror(error));
-	goto err_pa_new;
-    }
-
-    if (pa_simple_write(pa, output_buffer, (size_t)output_buffer_size, &error) < 0)
-    {
-	fprintf(stderr, "ERR : Unable to send data to PulseAudio: %s\n", pa_strerror(error));
-	goto err_pa_write;
     }
 
     if (pa_simple_drain(pa, &error) < 0)
@@ -150,8 +130,6 @@ err_pa_drain:
 err_pa_write:
     pa_simple_free(pa);
 err_pa_new:
-err_realloc:
-    free(output_buffer);
     munmap(file_buffer, statbuf.st_size);
 err_mmap:
 err_fstat:
