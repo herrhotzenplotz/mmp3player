@@ -20,8 +20,8 @@
  */
 
 /* minimp3 example
- * This example loads an mp3 file into memory and
- * plays it using PulseAudio.
+ * This example decodes an mp3 file and
+ * streams it to PulseAudio for playback.
  */
 
 #include <stdio.h>
@@ -90,7 +90,7 @@ int main(argc, argv)
 	if (!pa) {
 	    const pa_sample_spec ss = {
 	       .format = PA_SAMPLE_S16LE,
-	       .rate = 44100,
+	       .rate = info.hz,
 	       .channels = info.channels
 	    };
 
