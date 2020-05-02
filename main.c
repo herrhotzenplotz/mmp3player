@@ -31,7 +31,7 @@
 #include <unistd.h>
 
 //#define MINIMP3_FLOAT_OUTPUT
-#define MINIMP3_NO_SIMD
+//#define MINIMP3_NO_SIMD
 #define MINIMP3_IMPLEMENTATION
 #include "minimp3/minimp3.h"
 
