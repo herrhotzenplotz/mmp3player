@@ -12,5 +12,11 @@ all: mmp3player Makefile
 mmp3player: main.o
 	$(CC) $< $(LIBS) -o $@
 
+seek: seek.o
+	$(CC) $< $(LIBS) -o $@
+
+seek.o: seek.c
+	$(CC) -c $(CFLAGS) $< -o $@
+
 main.o: main.c
 	$(CC) -c $(CFLAGS) $< -o $@
